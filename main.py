@@ -2,20 +2,21 @@ import os
 import json
 from flask import Flask, request, abort
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputFile
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters,
     CallbackQueryHandler, ContextTypes, ConversationHandler
 )
 from telegram.constants import ParseMode
+import asyncio # Import asyncio for running async operations
 
 # --- Configuration ---
 # IMPORTANT: For Render, set these as actual Environment Variables in your service settings.
 # The default values here are just for local testing if env vars aren't set.
-API_TOKEN = os.getenv("TELEGRAM_API_TOKEN", "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://anime-fetch-j2ro.onrender.com/webhook")
-ADMIN_IDS = json.loads(os.getenv("ADMIN_IDS", "[5759232282]"))
+API_TOKEN = os.getenv("TELEGRAM_API_TOKEN", "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc") # <<< REPLACE WITH YOUR ACTUAL BOT TOKEN
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://anime-fetch-j2ro.onrender.com/webhook") # <<< ENSURE THIS IS YOUR RENDER URL
+ADMIN_IDS = json.loads(os.getenv("ADMIN_IDS", "[5759232282]")) # <<< REPLACE WITH YOUR ADMIN ID
 
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
@@ -25,8 +26,8 @@ ADD_POST_NAME, ADD_POST_BUTTON, ADD_POST_CONFIRM = range(3)
 
 START_IMAGE = "https://telegra.ph/file/050a20dace942a60220c0-6afbc023e43fad29c7.jpg"
 ABOUT_IMAGE = "https://telegra.ph/file/9d18345731db88fff4f8c-d2b3920631195c5747.jpg"
-HELP_IMAGE = "https://telegra.ph/file/e6ec31fc792d072da2b7e-54e2f9d4c5651823b3.jpg" # Corrected this link to a valid image
-DEFAULT_POST_IMAGE = "https://telegra.ph/file/9d18345731db88fff4f8c-d2b3920631195c5747.jpg" # Fallback if no media is sent
+HELP_IMAGE = "https://telegra.ph/file/e6ec31fc792d072da2b7e-54e2f9d4c5651823b3.jpg"
+DEFAULT_POST_IMAGE = "https://telegra.ph/file/9d18345731db88fff4f8c-d2b3920631195c5747.jpg"
 
 app = Flask(__name__)
 application = None # Initialize Application instance later
@@ -150,7 +151,7 @@ async def start_addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['caption'] = "" # Initialize caption
         await update.message.reply_text("Now, what's the name of the anime for this post?")
         return ADD_POST_NAME
-    
+
     # If /addpost is a reply to media
     if update.message.reply_to_message:
         replied_message = update.message.reply_to_message
@@ -211,7 +212,7 @@ async def get_post_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Construct the final caption
     final_caption = f"<b>{context.user_data['post_name']}</b>\n\n"
-    if context.user_data['caption']:
+    if context.user_data.get('caption'): # Use .get() to avoid KeyError if 'caption' is not set
         final_caption += f"{context.user_data['caption']}\n\n"
     final_caption += "✨ Download Now ✨"
 
@@ -251,7 +252,7 @@ async def confirm_addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if confirmation == 'yes':
         posts = load_json(POSTS_FILE)
         post_id = str(len(posts) + 1)
-        
+
         post_data = {
             "media_type": context.user_data.get('media_type', 'photo'), # Default to photo if not set
             "file_id": context.user_data.get('file_id', DEFAULT_POST_IMAGE), # Default to image if not set
@@ -275,12 +276,6 @@ async def cancel_addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- General User Functionality ---
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Unknown command. Click /help to see how the bot works.")
-
-async def delete_unwanted(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # This handler can be problematic if it deletes messages from users who send non-command text
-    # It's generally better to let non-command text pass or reply with a friendly message.
-    # I've commented out the original deletion logic to avoid unintended behavior.
-    pass
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
@@ -315,7 +310,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 found = True
             except Exception as e:
                 print(f"Error sending post {post_id}: {e}")
-                # You might want to handle invalid file_ids here, e.g., reply with text only
                 await update.message.reply_text(f"Error displaying post (ID: {post_id}). Details:\n{post['caption']}", reply_markup=markup)
                 found = True # Still considered found, just displayed differently
 
@@ -326,17 +320,17 @@ async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = ' '.join(context.args)
     if not name:
         return await update.message.reply_text("❗ Usage: /requestanime <anime name>")
-    
+
     requests = load_json(REQUESTS_FILE)
     user_id = str(update.effective_user.id)
-    
+
     # Initialize list if user has no requests
     if user_id not in requests:
         requests[user_id] = []
-        
+
     requests[user_id].append(name)
     save_json(REQUESTS_FILE, requests)
-    
+
     await update.message.reply_text("✅ Your request has been sent to the admins!")
     for admin in ADMIN_IDS:
         try:
@@ -369,7 +363,7 @@ async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = "<b>Your Requests:</b>\n- " + "\n- ".join(requests[user_id])
         else:
             msg = "You have no pending requests."
-            
+
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
 async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -380,7 +374,7 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     keys = list(posts.keys())
-    
+
     # Determine current page
     page = 1
     if context.args and context.args[0].isdigit():
@@ -390,13 +384,13 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     per_page = 5
     total_pages = (len(keys) + per_page - 1) // per_page
-    
+
     if not (1 <= page <= total_pages):
         page = 1 # Default to first page if invalid
 
     start_index = (page - 1) * per_page
     end_index = min(start_index + per_page, len(keys))
-    
+
     display_posts = []
     for i in range(start_index, end_index):
         post_key = keys[i]
@@ -414,9 +408,9 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
         nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"page:{page-1}"))
     if page < total_pages:
         nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"page:{page+1}"))
-    
+
     markup = InlineKeyboardMarkup([nav_buttons]) if nav_buttons else None
-    
+
     if update.callback_query:
         await update.callback_query.edit_message_caption(caption=caption_text, parse_mode=ParseMode.HTML, reply_markup=markup)
         await update.callback_query.answer()
@@ -429,7 +423,6 @@ async def page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     page = int(query.data.split(":")[1])
     context.args = [str(page)]
-    # We need to pass the update object with the callback query to animelist
     await animelist(update, context)
 
 
@@ -437,11 +430,11 @@ async def page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @app.route('/webhook', methods=['POST'])
 async def webhook():
     if request.method == "POST":
-        # Ensure application is initialized
         if application is None:
             print("Telegram Application not initialized. Aborting webhook.")
             abort(500)
 
+        # Process the update from Telegram
         update = Update.de_json(request.get_json(force=True), application.bot)
         await application.process_update(update)
         return "ok"
@@ -449,7 +442,7 @@ async def webhook():
         abort(405) # Method Not Allowed
 
 # --- Main Application Setup ---
-def setup_bot():
+async def setup_bot(): # Made async
     global application
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
@@ -457,10 +450,9 @@ def setup_bot():
     application = Application.builder().token(API_TOKEN).build()
 
     # Conversation Handler for adding posts
-    # Entry point is a command /addpost that is a reply OR a standalone /addpost
     add_post_entry_points = [
         CommandHandler("addpost", start_addpost, filters=filters.REPLY & (filters.PHOTO | filters.VIDEO)),
-        CommandHandler("addpost", start_addpost, filters=~filters.REPLY) # For default image scenario
+        CommandHandler("addpost", start_addpost, filters=~filters.REPLY)
     ]
 
     add_post_handler = ConversationHandler(
@@ -491,20 +483,25 @@ def setup_bot():
 
     # Message Handlers
     application.add_handler(MessageHandler(filters.COMMAND, unknown))
-    # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, delete_unwanted))
-    
+
+    # --- Crucial for Webhooks ---
+    # Set the webhook URL with Telegram
+    await application.bot.set_webhook(url=WEBHOOK_URL)
+    print(f"Webhook set to: {WEBHOOK_URL}")
+
     print("Bot setup complete. Ready for webhook requests.")
 
+# New main function to run the setup
+async def main():
+    await setup_bot()
+
 if __name__ == '__main__':
-    setup_bot() # Setup the Telegram Application and its handlers
+    # Run the asynchronous setup
+    asyncio.run(main())
 
-    # Set up the webhook once when the application starts
-    # This is done by your Render deployment's startup process
-    # If this bot was the only thing running, you'd call run_webhook.
-    # With Flask/Gunicorn, the webhook route handles the actual updates.
-    # It's important to set the webhook URL ONCE externally after deployment.
-    # The `gunicorn app:app` command will start Flask, and Flask will handle incoming requests.
-
-    port = int(os.environ.get("PORT", 8080)) # Render provides PORT env variable
-    print(f"Flask app running on port {port}")
-    app.run(host="0.0.0.0", port=port)
+    # When deploying with Gunicorn, Flask's app.run() is not needed.
+    # Gunicorn command will be `gunicorn app:app`
+    # However, for local testing *without* gunicorn, you might uncomment this:
+    # port = int(os.environ.get("PORT", 8080))
+    # print(f"Flask app running on port {port}")
+    # app.run(host="0.0.0.0", port=port)
