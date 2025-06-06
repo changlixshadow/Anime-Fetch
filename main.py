@@ -1,3 +1,6 @@
+from flask import Flask
+import threading
+
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
@@ -15,6 +18,15 @@ POSTS_FILE = "posts.json"
 ADMIN_ID = 5759232282
 
 WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
+
+# ----------------- FLASK SETUP ----------------- #
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+# ----------------- BOT CODE ----------------- #
 
 def ensure_posts_file():
     if not os.path.exists(POSTS_FILE):
@@ -126,7 +138,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if name in posts:
         post = posts[name]
-
         button_markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton(text=btn["text"], url=btn["url"]) for btn in row] for row in post.get("buttons", [])]
         )
@@ -143,7 +154,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No post found with that name.")
 
 async def handle_unrecognized(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Only respond in private chats (ignore group chat random messages)
     if update.effective_chat.type == "private":
         await update.message.reply_text(
             "Unrecognized command. Use:\n"
@@ -155,9 +165,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Action canceled.")
     return ConversationHandler.END
 
-def main():
+def run_bot():
     ensure_posts_file()
-
     application = Application.builder().token(API_TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -170,17 +179,17 @@ def main():
         per_user=True,
     )
 
-    # Add handlers for commands, allow both private and group commands
-    application.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE | filters.ChatType.GROUP))
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_handler)
-    application.add_handler(CommandHandler("animelist", animelist, filters=filters.ChatType.PRIVATE | filters.ChatType.GROUP))
-    application.add_handler(CommandHandler("search", search, filters=filters.ChatType.PRIVATE | filters.ChatType.GROUP))
-
-    # For unrecognized commands, reply only in private chat to avoid spam in groups
+    application.add_handler(CommandHandler("animelist", animelist))
+    application.add_handler(CommandHandler("search", search))
     application.add_handler(MessageHandler(filters.ALL, handle_unrecognized, block=False))
 
     print("Bot is running 🚀")
     application.run_polling()
 
+# Start bot in background when Flask server starts
 if __name__ == "__main__":
-    main()
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.start()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
