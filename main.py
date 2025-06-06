@@ -1,16 +1,20 @@
 import os
 import json
+import ssl
+import certifi
 from flask import Flask, request, abort
 from telegram import (
-    Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 )
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 )
 from telegram.constants import ParseMode
+import asyncio
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]
+
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 
@@ -105,19 +109,16 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_unwanted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.delete()
 
+# Setup Telegram bot Application
 app = ApplicationBuilder().token(API_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_command))
 app.add_handler(CallbackQueryHandler(button_callback))
-app.add_handler(CommandHandler("search", unknown))  # placeholders
-app.add_handler(CommandHandler("animelist", unknown))
-app.add_handler(CommandHandler("requestanime", unknown))
-app.add_handler(CommandHandler("addpost", unknown))
-app.add_handler(CommandHandler("viewrequests", unknown))
 app.add_handler(MessageHandler(filters.COMMAND, unknown))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, delete_unwanted))
 
+# Flask routes
 @flask_app.route('/')
 def home():
     return "Bot is running!"
@@ -126,7 +127,6 @@ def home():
 def webhook():
     if request.method == "POST":
         update = Update.de_json(request.get_json(force=True), app.bot)
-        import asyncio
         asyncio.run(app.update_queue.put(update))
         return "OK"
     else:
@@ -136,16 +136,16 @@ if __name__ == "__main__":
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
 
-    import asyncio
-
     async def main_async():
         await app.initialize()
         await app.start()
-        # Set webhook here
+
+        # Set webhook with certifi SSL context (if needed)
         success = await app.bot.set_webhook(WEBHOOK_URL_BASE + WEBHOOK_PATH)
         print("Webhook set:", success)
-        # We don't start polling because we use webhook in Render
 
+    # Run async bot startup + webhook set
     asyncio.run(main_async())
 
+    # Start Flask webserver for Render
     flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
