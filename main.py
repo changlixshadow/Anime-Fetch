@@ -2,7 +2,7 @@ import os
 import json
 from flask import Flask
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputFile
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters,
@@ -10,7 +10,7 @@ from telegram.ext import (
 )
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
-ADMIN_IDS = [5759232282]
+ADMIN_IDS = [5759232282]  # Replace with your Telegram user IDs
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 
@@ -38,7 +38,6 @@ def save_json(file, data):
     with open(file, 'w') as f:
         json.dump(data, f, indent=2)
 
-# Buttons helper functions
 def start_buttons():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("About 📜", callback_data="about"),
@@ -51,10 +50,9 @@ def back_button():
         [InlineKeyboardButton("🔙 Back", callback_data="back")]
     ])
 
-# /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = (
-        "\u2728 <b>Welcome to Anime Garden!</b> \u2728\n\n"
+        "✨ <b>Welcome to Anime Garden!</b> ✨\n\n"
         "Discover & Request your favorite Anime.\n"
         "Use the buttons below to explore more!\n\n"
         "<b>Channel:</b> @YourMainChannel\n"
@@ -63,82 +61,102 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_photo(photo=START_IMAGE, caption=caption,
                                      parse_mode='HTML', reply_markup=start_buttons())
 
-# /help command handler
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = (
-        "<b>\u2699 Help Guide</b>\n\n"
-        "\u25b6 Use /search &lt;name&gt; to find anime.\n"
-        "\u25b6 /animelist to see the list.\n"
-        "\u25b6 /requestanime &lt;name&gt; to request new anime.\n\n"
-        "<b>Admin Only:</b>\n"
-        "\u2714 /addpost\n\u2714 /viewrequests\n"
+        "<b>⚙ Help Guide</b>\n\n"
+        "▶ /search <name> - Find anime\n"
+        "▶ /animelist - Show list\n"
+        "▶ /requestanime <name> - Request new anime\n\n"
+        "<b>Admins Only:</b>\n✔ /addpost\n✔ /viewrequests"
     )
-    # If called as a command (normal message)
-    if update.message:
-        await update.message.reply_photo(photo=HELP_IMAGE, caption=caption, parse_mode='HTML')
-    # If called from callback query, edit media instead
-    elif update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        await query.message.edit_media(
-            InputMediaPhoto(media=HELP_IMAGE, caption=caption, parse_mode='HTML'),
-            reply_markup=back_button()
-        )
+    await update.message.reply_photo(photo=HELP_IMAGE, caption=caption, parse_mode='HTML')
 
-# About button handler
-async def about_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    about_caption = (
-        "<b>\u2139 About Us</b>\n\n"
-        "We are a dedicated Anime uploading community.\n"
-        "Check out our partner channels:\n\n"
-        "<a href='https://t.me/YourLink1'>🌈 Anime Vault</a>\n"
-        "<a href='https://t.me/YourLink2'>🌟 Otaku Corner</a>\n"
-        "<a href='https://t.me/YourLink3'>📱 Anime X</a>\n"
-        "<a href='https://t.me/YourLink4'>🚀 Streaming Hub</a>\n"
-        "<a href='https://t.me/YourLink5'>🌐 Global Anime</a>"
-    )
-    await query.message.edit_media(
-        InputMediaPhoto(media=ABOUT_IMAGE, caption=about_caption, parse_mode='HTML'),
-        reply_markup=back_button()
-    )
-
-# Close button handler
-async def close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.message.delete()
-
-# Back button handler
-async def back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    caption = (
-        "\u2728 <b>Welcome to Anime Garden!</b> \u2728\n\n"
-        "Discover & Request your favorite Anime.\n"
-        "Use the buttons below to explore more!\n\n"
-        "<b>Channel:</b> @YourMainChannel\n"
-        "<b>Backup:</b> @YourBackupChannel\n"
-    )
-    await query.message.edit_media(
-        InputMediaPhoto(media=START_IMAGE, caption=caption, parse_mode='HTML'),
-        reply_markup=start_buttons()
-    )
-
-# Callback query handler dispatcher
-async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = update.callback_query.data
-    if data == "about":
-        await about_callback(update, context)
-    elif data == "help":
-        await help_command(update, context)
-    elif data == "close":
-        await close_callback(update, context)
-    elif data == "back":
-        await back_callback(update, context)
-
-# Catch-all unknown command handler
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Unknown command. Use /help.")
+    await update.message.reply_text("Unknown command. Click /help to see how the bot works.")
+
+async def delete_unwanted(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.delete()
+
+async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS:
+        return
+    if not update.message.photo and not update.message.video:
+        return
+    media_type = 'photo' if update.message.photo else 'video'
+    file_id = update.message.photo[-1].file_id if media_type == 'photo' else update.message.video.file_id
+    caption = update.message.caption or ""
+    post_id = str(len(load_json(POSTS_FILE)) + 1)
+    post_data = load_json(POSTS_FILE)
+    post_data[post_id] = {
+        "media_type": media_type,
+        "file_id": file_id,
+        "caption": caption
+    }
+    save_json(POSTS_FILE, post_data)
+    await update.message.reply_text("✅ Post saved!")
+
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    posts = load_json(POSTS_FILE)
+    query = ' '.join(context.args).lower()
+    found = False
+    for post in posts.values():
+        if query in post["caption"].lower():
+            if post["media_type"] == "photo":
+                await update.message.reply_photo(photo=post["file_id"], caption=post["caption"])
+            else:
+                await update.message.reply_video(video=post["file_id"], caption=post["caption"])
+            found = True
+    if not found:
+        await update.message.reply_text("❌ No matching anime found.")
+
+async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    name = ' '.join(context.args)
+    if not name:
+        return await update.message.reply_text("❗ Usage: /requestanime <anime name>")
+    requests = load_json(REQUESTS_FILE)
+    user_id = str(update.effective_user.id)
+    requests[user_id] = requests.get(user_id, []) + [name]
+    save_json(REQUESTS_FILE, requests)
+    await update.message.reply_text("✅ Your request has been sent to the admins!")
+    for admin in ADMIN_IDS:
+        await context.bot.send_message(admin, f"📥 New request from {update.effective_user.first_name} (ID: {user_id}): {name}")
+
+async def notify_user(context: ContextTypes.DEFAULT_TYPE):
+    job = context.job
+    await context.bot.send_message(job.chat_id, text=f"✅ Your anime request '{job.data}' has been uploaded!")
+
+async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    requests = load_json(REQUESTS_FILE)
+    if user_id in ADMIN_IDS:
+        msg = "\n".join([f"{uid}: {', '.join(reqs)}" for uid, reqs in requests.items()])
+    else:
+        msg = "\n".join(requests.get(user_id, ["No requests found."]))
+    await update.message.reply_text(msg)
+
+async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    posts = load_json(POSTS_FILE)
+    page = int(context.args[0]) if context.args and context.args[0].isdigit() else 1
+    per_page = 5
+    keys = list(posts.keys())
+    total_pages = (len(keys) + per_page - 1) // per_page
+    start, end = (page - 1) * per_page, page * per_page
+    media = [f"{i+1}. {posts[k]['caption'][:30]}..." for i, k in enumerate(keys[start:end])]
+    nav_buttons = []
+    if page > 1:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"page:{page-1}"))
+    if page < total_pages:
+        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"page:{page+1}"))
+    markup = InlineKeyboardMarkup([nav_buttons]) if nav_buttons else None
+    await update.message.reply_text("\n".join(media), reply_markup=markup)
+
+async def page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    page = int(query.data.split(":")[1])
+    context.args = [str(page)]
+    update.message = query.message
+    await animelist(update, context)
 
 def run():
     ensure_file(POSTS_FILE)
@@ -148,10 +166,16 @@ def run():
 
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("help", help_command))
-    app_.add_handler(CallbackQueryHandler(callback_handler))
+    app_.add_handler(CommandHandler("addpost", addpost))
+    app_.add_handler(CommandHandler("search", search))
+    app_.add_handler(CommandHandler("requestanime", requestanime))
+    app_.add_handler(CommandHandler("viewrequests", viewrequests))
+    app_.add_handler(CommandHandler("animelist", animelist))
+    app_.add_handler(CallbackQueryHandler(page_callback, pattern=r"^page:"))
     app_.add_handler(MessageHandler(filters.COMMAND, unknown))
+    app_.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, delete_unwanted))
 
-    print("Bot running...")
+    print("Bot is running🚀...")
     app_.run_polling()
 
 if __name__ == '__main__':
