@@ -18,14 +18,14 @@ import json
 import os
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
-ADMIN_IDS = [5759232282]  # Add more admins if you want
+ADMIN_IDS = [5759232282]  # Add admin user IDs here
 
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 
 WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
 
-ITEMS_PER_PAGE = 5  # Number of items to show per page in paginated lists
+ITEMS_PER_PAGE = 5
 
 app = Flask(__name__)
 
@@ -47,7 +47,8 @@ def load_json(file):
     with open(file, "r") as f:
         return json.load(f)
 
-# --------------- Bot Commands ---------------- #
+# Telegram bot handlers (same as you gave)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Welcome to the Anime Bot! 🚀\n\n"
@@ -110,7 +111,6 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Post saved as '{name}'!")
     return ConversationHandler.END
 
-# --- Pagination Helper for lists --- #
 def paginate_list(items, page, per_page=ITEMS_PER_PAGE):
     total_pages = (len(items) + per_page - 1) // per_page
     if page < 0:
@@ -121,14 +121,12 @@ def paginate_list(items, page, per_page=ITEMS_PER_PAGE):
     end = start + per_page
     return items[start:end], page, total_pages
 
-# --- Animelist with Pagination --- #
 async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
     if not posts:
         await update.message.reply_text("No anime saved yet.")
         return
 
-    # Save the sorted list in context.user_data for pagination callbacks
     context.user_data["animelist_sorted"] = sorted(posts.keys())
     await send_animelist_page(update, context, page=0)
 
@@ -161,7 +159,6 @@ async def send_animelist_page(update_or_query, context, page):
     if isinstance(update_or_query, Update):
         await update_or_query.message.reply_text(message, parse_mode="Markdown", reply_markup=markup)
     else:
-        # It's a CallbackQuery
         await update_or_query.edit_message_text(message, parse_mode="Markdown", reply_markup=markup)
         await update_or_query.answer()
 
@@ -172,7 +169,6 @@ async def animelist_pagination_handler(update: Update, context: ContextTypes.DEF
     page = int(query.data.split("_")[-1])
     await send_animelist_page(query, context, page)
 
-# --- Search command --- #
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Usage: /search <name>")
@@ -194,7 +190,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_video(video=post["media"], caption=post["caption"], reply_markup=markup)
 
-# --- Request Anime Command --- #
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Usage: /requestanime <anime name>")
@@ -208,7 +203,6 @@ async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"✅ Your request for '{name}' has been saved!")
 
-# --- View Requests (Admins only) with Pagination --- #
 async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("You are not authorized to view requests.")
@@ -219,7 +213,6 @@ async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No requests found.")
         return
 
-    # Flatten requests into a list of tuples (user_id, [requests])
     requests_list = []
     for user_id, animes in requests.items():
         for anime in animes:
@@ -250,7 +243,6 @@ async def send_requests_page(update_or_query, context, page):
     if isinstance(update_or_query, Update):
         await update_or_query.message.reply_text(message, parse_mode="Markdown", reply_markup=markup)
     else:
-        # CallbackQuery
         await update_or_query.edit_message_text(message, parse_mode="Markdown", reply_markup=markup)
         await update_or_query.answer()
 
@@ -261,17 +253,14 @@ async def requests_pagination_handler(update: Update, context: ContextTypes.DEFA
     page = int(query.data.split("_")[-1])
     await send_requests_page(query, context, page)
 
-# --- Cancel handler --- #
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Action canceled.")
     return ConversationHandler.END
 
-# --- Unknown handler --- #
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
         await update.message.reply_text("Unknown command. Use /search or /animelist.")
 
-# ----------------- Run Bot ------------------ #
 def run_bot():
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
@@ -301,5 +290,9 @@ def run_bot():
     app_.run_polling()
 
 if __name__ == "__main__":
-    threading.Thread(target=run_bot).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    # Start Telegram bot in a separate thread
+    threading.Thread(target=run_bot, daemon=True).start()
+
+    # Run Flask app (main thread)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
