@@ -17,7 +17,7 @@ from telegram.ext import (
 import json
 import os
 
-API_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
+API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]  # Add admin user IDs here
 
 POSTS_FILE = "posts.json"
