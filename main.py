@@ -10,7 +10,7 @@ from telegram.ext import (
 import json
 import os
 
-API_TOKEN = "8006836827:AAF7YXTukf_5tU4mnNKzKxIBbQnq08yxrHM"
+API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 POSTS_FILE = "posts.json"
 ADMIN_ID = 5759232282
 
