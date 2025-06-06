@@ -51,13 +51,14 @@ def load_json(file):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Welcome to the Anime Bot! 🚀\n\n"
+        " 𝚆𝚎𝚕𝚌𝚘𝚖𝚎 𝚃𝚘 𝚃𝚑𝚎 𝙰𝚗𝚒𝚖𝚎 𝙶𝚊𝚛𝚍𝚎𝚗! 🚀\n\n"
         "Commands:\n"
-        "/addpost - Add a new anime post (Admin only)\n"
-        "/search <name> - Search for an anime\n"
-        "/animelist - View the list of saved anime\n"
-        "/requestanime <name> - Request an anime\n"
-        "/viewrequests - View user requests (Admin only)\n"
+        "/search <name> - 𝚂𝚎𝚊𝚛𝚌𝚑 𝙵𝚘𝚛 𝙰𝚗𝚒𝚖𝚎\n"
+        "/animelist - 𝚅𝚒𝚎𝚠 𝙰𝚗𝚒𝚖𝚎 𝙻𝚒𝚜𝚝...\n"
+        "/requestanime <name> - 𝚁𝚎𝚚𝚞𝚎𝚜𝚝 𝙰𝚗𝚒𝚖𝚎\n\𝚗"
+        "𝙰𝚍𝚖𝚒𝚗 𝙲𝚘𝚖𝚖𝚊𝚗𝚍𝚜\𝚗"
+        "/addpost - 𝙰𝚍𝚍 𝙰 𝙽𝚎𝚠 𝙿𝚘𝚜𝚝 (Admin only)\n"
+        "/viewrequests - 𝚅𝚒𝚎𝚠 𝚁𝚎𝚚𝚞𝚎𝚜𝚝 𝚂𝚎𝚗𝚍 𝙱𝚢 𝚄𝚜𝚎𝚛𝚜/𝙼𝚎𝚖𝚋𝚎𝚛𝚜(Admin only)\n"
     )
 
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -77,7 +78,7 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media = update.message.video.file_id
         media_type = "video"
     else:
-        await update.message.reply_text("Please send a photo or video.")
+        await update.message.reply_text("𝙿𝚕𝚎𝚊𝚜𝚎 𝚂𝚎𝚗𝚍 𝙿𝚘𝚜𝚝....")
         return WAITING_FOR_MEDIA
 
     caption = update.message.caption or ""
@@ -94,7 +95,7 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "buttons": buttons,
     })
 
-    await update.message.reply_text("Enter a name to save this post:")
+    await update.message.reply_text("𝙶𝚒𝚟𝚎 𝙰 𝙽𝚊𝚖𝚎 𝙵𝚘𝚛 𝚃𝚑𝚒𝚜 𝙿𝚘𝚜𝚝:")
     return WAITING_FOR_NAME
 
 async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -108,7 +109,7 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     save_json(POSTS_FILE, posts)
 
-    await update.message.reply_text(f"Post saved as '{name}'!")
+    await update.message.reply_text(f"𝙿𝚘𝚜𝚝 𝚂𝚊𝚟𝚎𝚍 𝙰𝚜 - '{name}'!")
     return ConversationHandler.END
 
 def paginate_list(items, page, per_page=ITEMS_PER_PAGE):
@@ -124,7 +125,7 @@ def paginate_list(items, page, per_page=ITEMS_PER_PAGE):
 async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
     if not posts:
-        await update.message.reply_text("No anime saved yet.")
+        await update.message.reply_text("𝙿𝚘𝚜𝚝 𝙽𝚘𝚝 𝙵𝚘𝚞𝚗𝚍")
         return
 
     context.user_data["animelist_sorted"] = sorted(posts.keys())
@@ -136,7 +137,7 @@ async def send_animelist_page(update_or_query, context, page):
 
     page_items, page, total_pages = paginate_list(sorted_keys, page)
 
-    message = "Saved Anime List:\n"
+    message = "𝙰𝚗𝚒𝚖𝚎 𝙻𝚒𝚜𝚝 𝙿𝚛𝚘𝚟𝚒𝚍𝚎𝚍 𝙱𝚢 : @Lord_Shadow_Sama\n ━━━━━━━━━━━━━━━━━━━━━━━━━━ \𝚗"
     current_letter = None
     for name in page_items:
         first_letter = name[0].upper()
@@ -171,12 +172,12 @@ async def animelist_pagination_handler(update: Update, context: ContextTypes.DEF
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /search <name>")
+        await update.message.reply_text("𝚄𝚜𝚎 𝚃𝚑𝚒𝚜 𝚃𝚘 𝚂𝚎𝚊𝚛𝚌𝚑 𝙰𝚗𝚒𝚖𝚎 : /search {𝙰𝚗𝚒𝚖𝚎 𝚗𝚊𝚖𝚎}\n ʟɪᴋᴇ ᴛʜɪs :- /Search ɴᴀʀᴜᴛᴏ")
         return
     name = " ".join(context.args)
     posts = load_json(POSTS_FILE)
     if name not in posts:
-        await update.message.reply_text("No post found with that name.")
+        await update.message.reply_text("ɴᴏ ᴘᴏsᴛ ғᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴀᴛ ɴᴀᴍᴇ...")
         return
 
     post = posts[name]
@@ -192,7 +193,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /requestanime <anime name>")
+        await update.message.reply_text("𝚄𝚜ᴇ: /requestanime <anime name>")
         return
 
     name = " ".join(context.args)
