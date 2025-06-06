@@ -1,7 +1,3 @@
-# ✅ Full working code (Python 3)
-# Files needed: posts.json, requests.json
-# Requirements: python-telegram-bot >= 20, Flask
-
 import os
 import json
 from flask import Flask
@@ -10,15 +6,13 @@ from telegram import (
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters,
-    CallbackQueryHandler, ContextTypes, ConversationHandler
+    CallbackQueryHandler, ContextTypes
 )
 
-API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
+API_TOKEN = "YOUR_BOT_TOKEN_HERE"
 ADMIN_IDS = [5759232282]
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
-WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
-ITEMS_PER_PAGE = 5
 
 START_IMAGE = "https://telegra.ph/file/050a20dace942a60220c0-6afbc023e43fad29c7.jpg"
 ABOUT_IMAGE = "https://telegra.ph/file/9d18345731db88fff4f8c-d2b3920631195c5747.jpg"
@@ -44,13 +38,21 @@ def save_json(file, data):
     with open(file, 'w') as f:
         json.dump(data, f, indent=2)
 
-# /start with media and buttons
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    buttons = [
+# Buttons helper functions
+def start_buttons():
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("About 📜", callback_data="about"),
          InlineKeyboardButton("Help ⚙️", callback_data="help")],
         [InlineKeyboardButton("❌ Close", callback_data="close")]
-    ]
+    ])
+
+def back_button():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back", callback_data="back")]
+    ])
+
+# /start command handler
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = (
         "\u2728 <b>Welcome to Anime Garden!</b> \u2728\n\n"
         "Discover & Request your favorite Anime.\n"
@@ -59,21 +61,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Backup:</b> @YourBackupChannel\n"
     )
     await update.message.reply_photo(photo=START_IMAGE, caption=caption,
-                                     parse_mode='HTML', reply_markup=InlineKeyboardMarkup(buttons))
+                                     parse_mode='HTML', reply_markup=start_buttons())
 
-# /help with media and emoji-rich info
+# /help command handler
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = (
         "<b>\u2699 Help Guide</b>\n\n"
-        "\u25b6 Use /search <name> to find anime.\n"
+        "\u25b6 Use /search &lt;name&gt; to find anime.\n"
         "\u25b6 /animelist to see the list.\n"
-        "\u25b6 /requestanime <name> to request new anime.\n\n"
+        "\u25b6 /requestanime &lt;name&gt; to request new anime.\n\n"
         "<b>Admin Only:</b>\n"
         "\u2714 /addpost\n\u2714 /viewrequests\n"
     )
-    await update.message.reply_photo(photo=HELP_IMAGE, caption=caption, parse_mode='HTML')
+    # If called as a command (normal message)
+    if update.message:
+        await update.message.reply_photo(photo=HELP_IMAGE, caption=caption, parse_mode='HTML')
+    # If called from callback query, edit media instead
+    elif update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        await query.message.edit_media(
+            InputMediaPhoto(media=HELP_IMAGE, caption=caption, parse_mode='HTML'),
+            reply_markup=back_button()
+        )
 
-# About handler
+# About button handler
 async def about_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -81,30 +93,50 @@ async def about_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>\u2139 About Us</b>\n\n"
         "We are a dedicated Anime uploading community.\n"
         "Check out our partner channels:\n\n"
-        "<a href='https://t.me/YourLink1'>\ud83c\udf08 Anime Vault</a>\n"
-        "<a href='https://t.me/YourLink2'>\ud83c\udf1f Otaku Corner</a>\n"
-        "<a href='https://t.me/YourLink3'>\ud83d\udcf1 Anime X</a>\n"
-        "<a href='https://t.me/YourLink4'>\ud83d\ude80 Streaming Hub</a>\n"
-        "<a href='https://t.me/YourLink5'>\ud83c\udf10 Global Anime</a>"
+        "<a href='https://t.me/YourLink1'>🌈 Anime Vault</a>\n"
+        "<a href='https://t.me/YourLink2'>🌟 Otaku Corner</a>\n"
+        "<a href='https://t.me/YourLink3'>📱 Anime X</a>\n"
+        "<a href='https://t.me/YourLink4'>🚀 Streaming Hub</a>\n"
+        "<a href='https://t.me/YourLink5'>🌐 Global Anime</a>"
     )
-    await query.message.edit_media(InputMediaPhoto(media=ABOUT_IMAGE, caption=about_caption, parse_mode='HTML'),
-                                   reply_markup=query.message.reply_markup)
+    await query.message.edit_media(
+        InputMediaPhoto(media=ABOUT_IMAGE, caption=about_caption, parse_mode='HTML'),
+        reply_markup=back_button()
+    )
 
-# Close handler
+# Close button handler
 async def close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.message.delete()
 
-# Callback dispatcher
+# Back button handler
+async def back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    caption = (
+        "\u2728 <b>Welcome to Anime Garden!</b> \u2728\n\n"
+        "Discover & Request your favorite Anime.\n"
+        "Use the buttons below to explore more!\n\n"
+        "<b>Channel:</b> @YourMainChannel\n"
+        "<b>Backup:</b> @YourBackupChannel\n"
+    )
+    await query.message.edit_media(
+        InputMediaPhoto(media=START_IMAGE, caption=caption, parse_mode='HTML'),
+        reply_markup=start_buttons()
+    )
+
+# Callback query handler dispatcher
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data
     if data == "about":
         await about_callback(update, context)
     elif data == "help":
-        await help_command(update.callback_query, context)
+        await help_command(update, context)
     elif data == "close":
         await close_callback(update, context)
+    elif data == "back":
+        await back_callback(update, context)
 
-# Catch-all
+# Catch-all unknown command handler
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Unknown command. Use /help.")
 
@@ -114,7 +146,6 @@ def run():
 
     app_ = Application.builder().token(API_TOKEN).build()
 
-    # Commands
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("help", help_command))
     app_.add_handler(CallbackQueryHandler(callback_handler))
