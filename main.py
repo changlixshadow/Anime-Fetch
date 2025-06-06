@@ -2,14 +2,13 @@ import os
 import json
 from flask import Flask
 from telegram import (
-    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto, InputFile
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters,
     CallbackQueryHandler, ContextTypes
 )
 from telegram.constants import ParseMode
-import asyncio
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]
@@ -98,25 +97,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Unknown command. Try /search or /animelist.")
 
-# --- Addpost command - Admin only ---
-
-# We'll store posts in posts.json with keys as unique IDs (e.g. incremental or timestamp)
-# Format per post:
-# {
-#   "id": {
-#     "caption": "caption text",
-#     "quality": "720p",
-#     "genre": "action, fantasy",
-#     "episode": "12",
-#     "file_id": telegram_file_id,
-#     "file_type": "photo" or "video" or "document"
-#   },
-#   ...
-# }
-
-# To simplify, /addpost should be followed by reply to a media with caption containing keys like:
-# quality:720p; genre:action; episode:12; caption:Your caption here
-
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS:
@@ -132,30 +112,22 @@ async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Reply to a photo, video or document with caption info.")
         return
 
-    # Parse info from reply caption
     text = reply.caption or ""
-    # Expected format: quality:720p; genre:action, fantasy; episode:12; caption:My cool caption
-    # parse key:value pairs separated by ;
     info = {}
     for part in text.split(";"):
         if ":" in part:
             k,v = part.strip().split(":",1)
             info[k.strip().lower()] = v.strip()
 
-    # Validate minimum keys
     if "caption" not in info:
         await update.message.reply_text("Caption key missing in reply caption.")
         return
 
-    # Load posts
     posts = load_json(POSTS_FILE)
-
-    # Generate new ID
     new_id = str(len(posts)+1)
 
-    # Save media file_id and type
     if reply.photo:
-        file_id = reply.photo[-1].file_id  # highest quality photo
+        file_id = reply.photo[-1].file_id
         ftype = "photo"
     elif reply.video:
         file_id = reply.video.file_id
@@ -179,8 +151,6 @@ async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_json(POSTS_FILE, posts)
     await update.message.reply_text(f"✅ Post added with ID {new_id}.")
 
-# --- /search command ---
-
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args).lower()
     if not query:
@@ -197,22 +167,19 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No posts found matching your query.")
         return
 
-    for pid, post in results[:5]:  # limit to 5 results
+    for pid, post in results[:5]:
         caption = (
             f"📌 <b>{post['caption']}</b>\n"
             f"Quality: {post['quality']}\n"
             f"Genre: {post['genre']}\n"
             f"Episode: {post['episode']}"
         )
-        # Send media with caption
         if post["file_type"] == "photo":
             await update.message.reply_photo(photo=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
         elif post["file_type"] == "video":
             await update.message.reply_video(video=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
         else:
             await update.message.reply_document(document=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
-
-# --- /animelist command with simple pagination ---
 
 PAGE_SIZE = 3
 
@@ -222,7 +189,6 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No posts available yet.")
         return
 
-    # page number from args or 0
     page = 0
     if context.args and context.args[0].isdigit():
         page = int(context.args[0])
@@ -250,8 +216,7 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def animelist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data  # animelist_0 or animelist_1
-
+    data = query.data
     if not data.startswith("animelist_"):
         return
     page = int(data.split("_")[1])
@@ -277,13 +242,10 @@ async def animelist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await query.edit_message_text(text=text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 
-# --- View single post from animelist ---
-
 async def viewpost_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data  # viewpost_1
-
+    data = query.data
     if not data.startswith("viewpost_"):
         return
 
@@ -305,18 +267,8 @@ async def viewpost_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Back to List", callback_data="animelist_0")]
     ])
 
-    if post["file_type"] == "photo":
-        media = InputMediaPhoto(media=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
-    elif post["file_type"] == "video":
-        media = post["file_id"]  # will send video separately
-    else:
-        media = post["file_id"]
-
-    # Edit message with text + buttons
-    # Telegram limits editing media + caption simultaneously, so better just edit caption and buttons
+    # Editing caption and buttons only (media editing is restricted)
     await query.edit_message_caption(caption=caption, parse_mode=ParseMode.HTML, reply_markup=kb)
-
-# --- /requestanime command ---
 
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -336,8 +288,6 @@ async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_json(REQUESTS_FILE, requests)
     await update.message.reply_text(f"✅ Your request for '{query}' has been received!")
 
-# --- /viewrequests (admin only) ---
-
 async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS:
@@ -355,8 +305,6 @@ async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
-# --- /help command ---
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🛠️ <b>Help Menu</b>\n\n"
@@ -367,8 +315,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "➤ /viewrequests - Admin only, view requests\n"
     )
     await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
-
-# --- Main ---
 
 async def main():
     ensure_file(POSTS_FILE)
