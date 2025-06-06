@@ -319,3 +319,7 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
+updater.start_webhook(listen="0.0.0.0",
+                      port=int(PORT),
+                      url_path=TOKEN)
+updater.bot.set_webhook(f"https://anime-fetch-j2ro.onrender.com/{TOKEN}")
