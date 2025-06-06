@@ -1,5 +1,6 @@
 from flask import Flask
-import threading
+import os
+import json
 from telegram import (
     Update,
     InlineKeyboardMarkup,
@@ -14,17 +15,14 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-import json
-import os
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
-ADMIN_IDS = [5759232282]  # Add admin user IDs here
+ADMIN_IDS = [5759232282]  # Admin User IDs here
 
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 
 WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
-
 ITEMS_PER_PAGE = 5
 
 app = Flask(__name__)
@@ -47,20 +45,20 @@ def load_json(file):
     with open(file, "r") as f:
         return json.load(f)
 
-# Telegram bot handlers (same as you gave)
-
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        " 𝚆𝚎𝚕𝚌𝚘𝚖𝚎 𝚃𝚘 𝚃𝚑𝚎 𝙰𝚗𝚒𝚖𝚎 𝙶𝚊𝚛𝚍𝚎𝚗! 🚀\n\n"
+        "𝚆𝚎𝚕𝚌𝚘𝚖𝚎 𝚃𝚘 𝚃𝚑𝚎 𝙰𝚗𝚒𝚖𝚎 𝙶𝚊𝚛𝚍𝚎𝚗! 🚀\n\n"
         "Commands:\n"
         "/search <name> - 𝚂𝚎𝚊𝚛𝚌𝚑 𝙵𝚘𝚛 𝙰𝚗𝚒𝚖𝚎\n"
-        "/animelist - 𝚅𝚒𝚎𝚠 𝙰𝚗𝚒𝚖𝚎 𝙻𝚒𝚜𝚝...\n"
-        "/requestanime <name> - 𝚁𝚎𝚚𝚞𝚎𝚜𝚝 𝙰𝚗𝚒𝚖𝚎\n\𝚗"
-        "𝙰𝚍𝚖𝚒𝚗 𝙲𝚘𝚖𝚖𝚊𝚗𝚍𝚜\𝚗"
+        "/animelist - 𝚅𝚒𝚎𝚠 𝙰𝚗𝚒𝚖𝚎 𝙻𝚒𝚜𝚝\n"
+        "/requestanime <name> - 𝚁𝚎𝚚𝚞𝚎𝚜𝚝 𝙰𝚗𝚒𝚖𝚎\n\n"
+        "Admin Commands:\n"
         "/addpost - 𝙰𝚍𝚍 𝙰 𝙽𝚎𝚠 𝙿𝚘𝚜𝚝 (Admin only)\n"
-        "/viewrequests - 𝚅𝚒𝚎𝚠 𝚁𝚎𝚚𝚞𝚎𝚜𝚝 𝚂𝚎𝚗𝚍 𝙱𝚢 𝚄𝚜𝚎𝚛𝚜/𝙼𝚎𝚖𝚋𝚎𝚛𝚜(Admin only)\n"
+        "/viewrequests - 𝚅𝚒𝚎𝚠 𝚁𝚎𝚚𝚞𝚎𝚜𝚝𝚜 (Admin only)\n"
     )
 
+# Addpost command (admin only)
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("You are not authorized to use this command.")
@@ -68,8 +66,10 @@ async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Send the photo or video with optional caption and buttons.")
     return WAITING_FOR_MEDIA
 
+# Receive media (photo or video)
 async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    media, media_type = None, None
+    media = None
+    media_type = None
 
     if update.message.photo:
         media = update.message.photo[-1].file_id
@@ -78,12 +78,13 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media = update.message.video.file_id
         media_type = "video"
     else:
-        await update.message.reply_text("𝙿𝚕𝚎𝚊𝚜𝚎 𝚂𝚎𝚗𝚍 𝙿𝚘𝚜𝚝....")
+        await update.message.reply_text("𝙿𝚕𝚎𝚊𝚜𝚎 𝚂𝚎𝚗𝚍 𝙰 𝙿𝚑𝚘𝚝𝚘 𝙾𝚛 𝚅𝚒𝚍𝚎𝚘 𝙵𝚒𝚕𝚎.")
         return WAITING_FOR_MEDIA
 
     caption = update.message.caption or ""
     buttons = []
 
+    # Extract buttons if sent as reply_markup (InlineKeyboardMarkup)
     if update.message.reply_markup and isinstance(update.message.reply_markup, InlineKeyboardMarkup):
         for row in update.message.reply_markup.inline_keyboard:
             buttons.append([{"text": btn.text, "url": btn.url} for btn in row])
@@ -95,12 +96,19 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "buttons": buttons,
     })
 
-    await update.message.reply_text("𝙶𝚒𝚟𝚎 𝙰 𝙽𝚊𝚖𝚎 𝙵𝚘𝚛 𝚃𝚑𝚒𝚜 𝙿𝚘𝚜𝚝:")
+    await update.message.reply_text("𝙿𝚕𝚎𝚊𝚜𝚎 𝚂𝚎𝚗𝚍 𝙰 𝙽𝚊𝚖𝚎 𝙵𝚘𝚛 𝚃𝚑𝚒𝚜 𝙿𝚘𝚜𝚝:")
     return WAITING_FOR_NAME
 
+# Save the post name and data
 async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
     posts = load_json(POSTS_FILE)
+
+    # Avoid overwriting existing posts if needed (optional)
+    # if name in posts:
+    #     await update.message.reply_text("This name already exists. Please choose a different name.")
+    #     return WAITING_FOR_NAME
+
     posts[name] = {
         "media": context.user_data["media"],
         "caption": context.user_data["caption"],
@@ -109,11 +117,14 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     save_json(POSTS_FILE, posts)
 
-    await update.message.reply_text(f"𝙿𝚘𝚜𝚝 𝚂𝚊𝚟𝚎𝚍 𝙰𝚜 - '{name}'!")
+    await update.message.reply_text(f"𝙿𝚘𝚜𝚝 𝚂𝚊𝚟𝚎𝚍 𝙰𝚜 '{name}'!")
     return ConversationHandler.END
 
+# Pagination helper
 def paginate_list(items, page, per_page=ITEMS_PER_PAGE):
     total_pages = (len(items) + per_page - 1) // per_page
+    if total_pages == 0:
+        total_pages = 1
     if page < 0:
         page = 0
     elif page >= total_pages:
@@ -122,22 +133,25 @@ def paginate_list(items, page, per_page=ITEMS_PER_PAGE):
     end = start + per_page
     return items[start:end], page, total_pages
 
+# Show animelist command with pagination
 async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
     if not posts:
-        await update.message.reply_text("𝙿𝚘𝚜𝚝 𝙽𝚘𝚝 𝙵𝚘𝚞𝚗𝚍")
+        await update.message.reply_text("𝙿𝚘𝚜𝚝𝚜 𝙽𝚘𝚝 𝙵𝚘𝚞𝚗𝚍.")
         return
 
-    context.user_data["animelist_sorted"] = sorted(posts.keys())
+    sorted_keys = sorted(posts.keys())
+    context.user_data["animelist_sorted"] = sorted_keys
     await send_animelist_page(update, context, page=0)
 
+# Send animelist page with inline buttons
 async def send_animelist_page(update_or_query, context, page):
     posts = load_json(POSTS_FILE)
     sorted_keys = context.user_data.get("animelist_sorted", sorted(posts.keys()))
 
     page_items, page, total_pages = paginate_list(sorted_keys, page)
 
-    message = "𝙰𝚗𝚒𝚖𝚎 𝙻𝚒𝚜𝚝 𝙿𝚛𝚘𝚟𝚒𝚍𝚎𝚍 𝙱𝚢 : @Lord_Shadow_Sama\n ━━━━━━━━━━━━━━━━━━━━━━━━━━ \𝚗"
+    message = "𝙰𝚗𝚒𝚖𝚎 𝙻𝚒𝚜𝚝:\n━━━━━━━━━━━━━━━━━━\n"
     current_letter = None
     for name in page_items:
         first_letter = name[0].upper()
@@ -163,6 +177,7 @@ async def send_animelist_page(update_or_query, context, page):
         await update_or_query.edit_message_text(message, parse_mode="Markdown", reply_markup=markup)
         await update_or_query.answer()
 
+# Handle animelist pagination callback
 async def animelist_pagination_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query.data.startswith("animelist_page_"):
@@ -170,14 +185,15 @@ async def animelist_pagination_handler(update: Update, context: ContextTypes.DEF
     page = int(query.data.split("_")[-1])
     await send_animelist_page(query, context, page)
 
+# Search anime by name
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("𝚄𝚜𝚎 𝚃𝚑𝚒𝚜 𝚃𝚘 𝚂𝚎𝚊𝚛𝚌𝚑 𝙰𝚗𝚒𝚖𝚎 : /search {𝙰𝚗𝚒𝚖𝚎 𝚗𝚊𝚖𝚎}\n ʟɪᴋᴇ ᴛʜɪs :- /Search ɴᴀʀᴜᴛᴏ")
+        await update.message.reply_text("𝚄𝚜𝚎 /search <anime name>\nExample: /search Naruto")
         return
-    name = " ".join(context.args)
+    name = " ".join(context.args).strip()
     posts = load_json(POSTS_FILE)
     if name not in posts:
-        await update.message.reply_text("ɴᴏ ᴘᴏsᴛ ғᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴀᴛ ɴᴀᴍᴇ...")
+        await update.message.reply_text("No post found with that name.")
         return
 
     post = posts[name]
@@ -191,12 +207,13 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_video(video=post["media"], caption=post["caption"], reply_markup=markup)
 
+# Request anime command
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("𝚄𝚜ᴇ: /requestanime <anime name>")
+        await update.message.reply_text("𝚄𝚜𝚎: /requestanime <anime name>")
         return
 
-    name = " ".join(context.args)
+    name = " ".join(context.args).strip()
     requests = load_json(REQUESTS_FILE)
     user_id = str(update.effective_user.id)
     requests.setdefault(user_id, []).append(name)
@@ -204,6 +221,7 @@ async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"✅ Your request for '{name}' has been saved!")
 
+# View requests (admin only)
 async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("You are not authorized to view requests.")
@@ -222,6 +240,7 @@ async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["requests_list"] = requests_list
     await send_requests_page(update, context, page=0)
 
+# Send requests page with pagination
 async def send_requests_page(update_or_query, context, page):
     requests_list = context.user_data.get("requests_list", [])
     page_items, page, total_pages = paginate_list(requests_list, page)
@@ -247,6 +266,7 @@ async def send_requests_page(update_or_query, context, page):
         await update_or_query.edit_message_text(message, parse_mode="Markdown", reply_markup=markup)
         await update_or_query.answer()
 
+# Requests pagination callback
 async def requests_pagination_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query.data.startswith("requests_page_"):
@@ -254,20 +274,25 @@ async def requests_pagination_handler(update: Update, context: ContextTypes.DEFA
     page = int(query.data.split("_")[-1])
     await send_requests_page(query, context, page)
 
+# Cancel conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Action canceled.")
     return ConversationHandler.END
 
+# Unknown commands handler
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
         await update.message.reply_text("Unknown command. Use /search or /animelist.")
 
 def run_bot():
+    # Ensure JSON files exist
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
 
+    # Create bot application
     app_ = Application.builder().token(API_TOKEN).build()
 
+    # Conversation handler for adding posts
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("addpost", addpost)],
         states={
@@ -275,8 +300,10 @@ def run_bot():
             WAITING_FOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_name)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
     )
 
+    # Add handlers
     app_.add_handler(CommandHandler("start", start))
     app_.add_handler(CommandHandler("animelist", animelist))
     app_.add_handler(CallbackQueryHandler(animelist_pagination_handler, pattern=r"^animelist_page_\d+$"))
@@ -292,4 +319,3 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
-
