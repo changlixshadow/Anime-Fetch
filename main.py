@@ -1,5 +1,3 @@
-# ✅ Full working Render-compatible anime bot with banner, post system, and commands
-
 import os
 import json
 from flask import Flask
@@ -7,211 +5,394 @@ from telegram import (
     Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto, InputFile
 )
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler, CallbackQueryHandler,
-    ContextTypes, filters, ConversationHandler
+    Application, CommandHandler, MessageHandler, filters,
+    CallbackQueryHandler, ContextTypes
 )
 from telegram.constants import ParseMode
+import asyncio
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
-WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
 
 app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot is alive!"
 
 def ensure_file(file):
     if not os.path.exists(file):
         with open(file, "w") as f:
             json.dump({}, f)
 
-def save_json(file, data):
-    with open(file, "w") as f:
-        json.dump(data, f, indent=4)
-
 def load_json(file):
     ensure_file(file)
     with open(file, "r") as f:
         return json.load(f)
 
-START_BANNER_URL = "https://telegra.ph/file/2e3bff6ea7852419eeb6c.jpg"
-ABOUT_BANNER_URL = "https://telegra.ph/file/9b25d84c3f0d6ae6850d9.jpg"
-HELP_BANNER_URL = "https://telegra.ph/file/b87b9c872f2705026dd67.jpg"
+def save_json(file, data):
+    with open(file, "w") as f:
+        json.dump(data, f, indent=2)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def send_start_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("\ud83d\udcd6 About", callback_data="about")],
-        [InlineKeyboardButton("\ud83c\udd98 Help", callback_data="help")],
-        [InlineKeyboardButton("\u274c Close", callback_data="close")]
+        [InlineKeyboardButton("About ℹ️", callback_data="about")],
+        [InlineKeyboardButton("Help 🛠️", callback_data="help")],
+        [InlineKeyboardButton("Close ❌", callback_data="close")]
     ]
+    banner = "https://telegra.ph/file/7e0a1e898edaf94b33c4c.jpg"
+    caption = (
+        "🎉 <b>Welcome to Anime Garden</b> 🌸\n\n"
+        "🔍 Use /search <i>anime name</i> to find posts\n"
+        "📜 Browse with /animelist\n"
+        "📥 Request anime with /requestanime <i>name</i>\n\n"
+        "🔗 Join: <a href='https://t.me/yourchannel'>Our Channel</a>"
+    )
     await update.message.reply_photo(
-        photo=START_BANNER_URL,
-        caption=(
-            "\ud83d\udc4b \u1d0d\u1d04\u1d07\u1d0b\u1d07 \u1d05\u1d0f \u1d1b\u1d00 \u1d1d\u1d07\u1d07 \u1d05\u1d0f \u1d18\u1d07 \u1d0d\u1d07 \u1d0d\u1d07\u026a\u1d04 \u1d0b\u1d00\u1d07\u1d04\u1d07\u1d0d\n\n"
-            "\ud83d\udd0d /search <name>\n"
-            "\ud83d\udcdc /animelist\n"
-            "\ud83c\udfaf /requestanime <title>"
-        ),
+        photo=banner,
+        caption=caption,
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send_start_banner(update, context)
+
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    data = query.data
-
-    if data == "about":
-        await query.edit_message_media(
-            media=InputMediaPhoto(
-                media=ABOUT_BANNER_URL,
-                caption=(
-                    "\ud83d\udcd6 <b>About Us</b>\n\n"
-                    "We are a team of otakus bringing you the best anime collection!\n"
-                    "\ud83d\udcfa <a href='https://t.me/anime_channel'>Our Channel</a>\n"
-                    "\ud83c\udf10 <a href='https://t.me/anime_support'>Support</a>\n"
-                    "\ud83c\udfae <a href='https://t.me/anime_games'>Games</a>"
-                ),
-                parse_mode="HTML"
-            ),
+    await query.answer()
+    if query.data == "about":
+        caption = (
+            "<b>About Us</b>\n\n"
+            "🌸 Powered by <a href='https://t.me/yourchannel'>Anime Garden</a>\n"
+            "🌐 Updates: <a href='https://t.me/yourupdates'>Channel</a>\n"
+            "📩 Contact admin: <a href='https://t.me/youradmin'>@youradmin</a>"
+        )
+        await query.edit_message_caption(
+            caption=caption,
+            parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("\ud83d\udd19 Back", callback_data="back")]
+                [InlineKeyboardButton("Help 🛠️", callback_data="help")],
+                [InlineKeyboardButton("Close ❌", callback_data="close")]
             ])
         )
-        await query.answer()
-    elif data == "help":
-        await query.edit_message_media(
-            media=InputMediaPhoto(
-                media=HELP_BANNER_URL,
-                caption=(
-                    "\ud83c\udd98 <b>Help Section</b>\n\n"
-                    "\ud83d\udd0d /search <name> - Search anime by name\n"
-                    "\ud83d\udcdc /animelist - View all available anime\n"
-                    "\ud83c\udfaf /requestanime <name> - Request new anime\n\n"
-                    "Admins:\n"
-                    "\u2795 /addpost - Add a post\n"
-                    "\ud83d\udcec /viewrequests - View requests"
-                ),
-                parse_mode="HTML"
-            ),
+    elif query.data == "help":
+        help_text = (
+            "🛠️ <b>Help Menu</b>\n\n"
+            "➤ /search &lt;anime name&gt; - Search posts\n"
+            "➤ /animelist - View all anime\n"
+            "➤ /requestanime &lt;name&gt; - Request anime\n"
+            "➤ /addpost - Admin only, add post\n"
+            "➤ /viewrequests - Admin only, view requests\n\n"
+            "Bot by @youradmin"
+        )
+        await query.edit_message_caption(
+            caption=help_text,
+            parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("\ud83d\udd19 Back", callback_data="back")]
+                [InlineKeyboardButton("About ℹ️", callback_data="about")],
+                [InlineKeyboardButton("Close ❌", callback_data="close")]
             ])
         )
-        await query.answer()
-    elif data == "back":
-        await start(update, context)
-    elif data == "close":
-        await query.message.delete()
+    elif query.data == "close":
+        await query.delete_message()
 
-# -------------------- Addpost, Request, Search, Animelist --------------------
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Unknown command. Try /search or /animelist.")
 
-async def addpost_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("You are not authorized.")
-        return ConversationHandler.END
-    await update.message.reply_text("Send the media to post:")
-    return WAITING_FOR_MEDIA
+# --- Addpost command - Admin only ---
 
-async def addpost_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['media'] = update.message
-    await update.message.reply_text("Now send the name/label for the post:")
-    return WAITING_FOR_NAME
+# We'll store posts in posts.json with keys as unique IDs (e.g. incremental or timestamp)
+# Format per post:
+# {
+#   "id": {
+#     "caption": "caption text",
+#     "quality": "720p",
+#     "genre": "action, fantasy",
+#     "episode": "12",
+#     "file_id": telegram_file_id,
+#     "file_type": "photo" or "video" or "document"
+#   },
+#   ...
+# }
 
-async def addpost_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.message.text
-    media_msg = context.user_data['media']
+# To simplify, /addpost should be followed by reply to a media with caption containing keys like:
+# quality:720p; genre:action; episode:12; caption:Your caption here
+
+async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ You are not authorized to add posts.")
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Reply to media with caption containing post info to add.")
+        return
+
+    reply = update.message.reply_to_message
+    if not (reply.photo or reply.video or reply.document):
+        await update.message.reply_text("Reply to a photo, video or document with caption info.")
+        return
+
+    # Parse info from reply caption
+    text = reply.caption or ""
+    # Expected format: quality:720p; genre:action, fantasy; episode:12; caption:My cool caption
+    # parse key:value pairs separated by ;
+    info = {}
+    for part in text.split(";"):
+        if ":" in part:
+            k,v = part.strip().split(":",1)
+            info[k.strip().lower()] = v.strip()
+
+    # Validate minimum keys
+    if "caption" not in info:
+        await update.message.reply_text("Caption key missing in reply caption.")
+        return
+
+    # Load posts
     posts = load_json(POSTS_FILE)
 
-    post_data = {
-        "caption": media_msg.caption or name,
-        "file_id": media_msg.video.file_id if media_msg.video else media_msg.document.file_id,
-        "type": "video" if media_msg.video else "document"
-    }
-    posts[name] = post_data
-    save_json(POSTS_FILE, posts)
+    # Generate new ID
+    new_id = str(len(posts)+1)
 
-    await update.message.reply_text(f"Post saved as: {name}")
-    return ConversationHandler.END
+    # Save media file_id and type
+    if reply.photo:
+        file_id = reply.photo[-1].file_id  # highest quality photo
+        ftype = "photo"
+    elif reply.video:
+        file_id = reply.video.file_id
+        ftype = "video"
+    elif reply.document:
+        file_id = reply.document.file_id
+        ftype = "document"
+    else:
+        await update.message.reply_text("Unsupported media type.")
+        return
+
+    posts[new_id] = {
+        "caption": info["caption"],
+        "quality": info.get("quality","Unknown"),
+        "genre": info.get("genre","Unknown"),
+        "episode": info.get("episode","Unknown"),
+        "file_id": file_id,
+        "file_type": ftype
+    }
+
+    save_json(POSTS_FILE, posts)
+    await update.message.reply_text(f"✅ Post added with ID {new_id}.")
+
+# --- /search command ---
+
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = " ".join(context.args).lower()
+    if not query:
+        await update.message.reply_text("Usage: /search <anime name>")
+        return
+
+    posts = load_json(POSTS_FILE)
+    results = []
+    for pid, post in posts.items():
+        if query in post.get("caption","").lower() or query in post.get("genre","").lower():
+            results.append((pid, post))
+
+    if not results:
+        await update.message.reply_text("No posts found matching your query.")
+        return
+
+    for pid, post in results[:5]:  # limit to 5 results
+        caption = (
+            f"📌 <b>{post['caption']}</b>\n"
+            f"Quality: {post['quality']}\n"
+            f"Genre: {post['genre']}\n"
+            f"Episode: {post['episode']}"
+        )
+        # Send media with caption
+        if post["file_type"] == "photo":
+            await update.message.reply_photo(photo=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
+        elif post["file_type"] == "video":
+            await update.message.reply_video(video=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_document(document=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
+
+# --- /animelist command with simple pagination ---
+
+PAGE_SIZE = 3
 
 async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
     if not posts:
-        await update.message.reply_text("No anime posts yet.")
+        await update.message.reply_text("No posts available yet.")
         return
-    msg = "\ud83d\udcd6 <b>Available Anime</b>\n\n"
-    for name in posts:
-        msg += f"• {name}\n"
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
-async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /search <name>")
+    # page number from args or 0
+    page = 0
+    if context.args and context.args[0].isdigit():
+        page = int(context.args[0])
+
+    start = page * PAGE_SIZE
+    end = start + PAGE_SIZE
+    items = list(posts.items())[start:end]
+
+    text = "<b>Anime List</b>\n\n"
+    buttons = []
+    for pid, post in items:
+        text += f"{pid}. {post['caption']} ({post['quality']})\n"
+        buttons.append([InlineKeyboardButton(f"View {pid}", callback_data=f"viewpost_{pid}")])
+
+    nav_buttons = []
+    if start > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"animelist_{page-1}"))
+    if end < len(posts):
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"animelist_{page+1}"))
+
+    reply_markup = InlineKeyboardMarkup(buttons + [nav_buttons] if nav_buttons else buttons)
+
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+async def animelist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # animelist_0 or animelist_1
+
+    if not data.startswith("animelist_"):
         return
-    query = " ".join(context.args).lower()
+    page = int(data.split("_")[1])
+
     posts = load_json(POSTS_FILE)
-    for name, data in posts.items():
-        if query in name.lower():
-            if data['type'] == 'video':
-                await update.message.reply_video(video=data['file_id'], caption=data['caption'])
-            else:
-                await update.message.reply_document(document=data['file_id'], caption=data['caption'])
-            return
-    await update.message.reply_text("Not found.")
+    start = page * PAGE_SIZE
+    end = start + PAGE_SIZE
+    items = list(posts.items())[start:end]
+
+    text = "<b>Anime List</b>\n\n"
+    buttons = []
+    for pid, post in items:
+        text += f"{pid}. {post['caption']} ({post['quality']})\n"
+        buttons.append([InlineKeyboardButton(f"View {pid}", callback_data=f"viewpost_{pid}")])
+
+    nav_buttons = []
+    if start > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"animelist_{page-1}"))
+    if end < len(posts):
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"animelist_{page+1}"))
+
+    reply_markup = InlineKeyboardMarkup(buttons + [nav_buttons] if nav_buttons else buttons)
+
+    await query.edit_message_text(text=text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+# --- View single post from animelist ---
+
+async def viewpost_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # viewpost_1
+
+    if not data.startswith("viewpost_"):
+        return
+
+    pid = data.split("_")[1]
+    posts = load_json(POSTS_FILE)
+    post = posts.get(pid)
+    if not post:
+        await query.edit_message_text("Post not found.")
+        return
+
+    caption = (
+        f"📌 <b>{post['caption']}</b>\n"
+        f"Quality: {post['quality']}\n"
+        f"Genre: {post['genre']}\n"
+        f"Episode: {post['episode']}"
+    )
+
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Back to List", callback_data="animelist_0")]
+    ])
+
+    if post["file_type"] == "photo":
+        media = InputMediaPhoto(media=post["file_id"], caption=caption, parse_mode=ParseMode.HTML)
+    elif post["file_type"] == "video":
+        media = post["file_id"]  # will send video separately
+    else:
+        media = post["file_id"]
+
+    # Edit message with text + buttons
+    # Telegram limits editing media + caption simultaneously, so better just edit caption and buttons
+    await query.edit_message_caption(caption=caption, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+# --- /requestanime command ---
 
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /requestanime <title>")
+    user = update.effective_user
+    query = " ".join(context.args).strip()
+    if not query:
+        await update.message.reply_text("Usage: /requestanime <anime name>")
         return
-    title = " ".join(context.args)
+
     requests = load_json(REQUESTS_FILE)
-    requests[str(update.effective_user.id)] = title
+
+    req_id = str(len(requests)+1)
+    requests[req_id] = {
+        "user_id": user.id,
+        "user_name": user.username or user.full_name,
+        "request": query
+    }
     save_json(REQUESTS_FILE, requests)
-    await update.message.reply_text("Your request has been noted.")
+    await update.message.reply_text(f"✅ Your request for '{query}' has been received!")
+
+# --- /viewrequests (admin only) ---
 
 async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("You are not authorized.")
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ You are not authorized.")
         return
+
     requests = load_json(REQUESTS_FILE)
     if not requests:
         await update.message.reply_text("No requests yet.")
         return
-    msg = "\ud83d\udce3 <b>User Requests</b>\n\n"
-    for uid, title in requests.items():
-        msg += f"User {uid}: {title}\n"
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
-# -------------------- Run Bot --------------------
+    text = "<b>Anime Requests</b>\n\n"
+    for rid, req in requests.items():
+        text += f"{rid}. @{req['user_name']}: {req['request']}\n"
 
-def run_bot():
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
+# --- /help command ---
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "🛠️ <b>Help Menu</b>\n\n"
+        "➤ /search &lt;anime name&gt; - Search posts\n"
+        "➤ /animelist - View all anime\n"
+        "➤ /requestanime &lt;name&gt; - Request anime\n"
+        "➤ /addpost - Admin only, add post\n"
+        "➤ /viewrequests - Admin only, view requests\n"
+    )
+    await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
+
+# --- Main ---
+
+async def main():
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
-    
-    app_ = Application.builder().token(API_TOKEN).build()
 
-    app_.add_handler(CommandHandler("start", start))
-    app_.add_handler(CallbackQueryHandler(button_handler, pattern="^(about|help|back|close)$"))
+    application = Application.builder().token(API_TOKEN).build()
 
-    app_.add_handler(CommandHandler("animelist", animelist))
-    app_.add_handler(CommandHandler("search", search))
-    app_.add_handler(CommandHandler("requestanime", requestanime))
-    app_.add_handler(CommandHandler("viewrequests", viewrequests))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("addpost", addpost))
+    application.add_handler(CommandHandler("search", search))
+    application.add_handler(CommandHandler("animelist", animelist))
+    application.add_handler(CommandHandler("requestanime", requestanime))
+    application.add_handler(CommandHandler("viewrequests", viewrequests))
 
-    addpost_conv = ConversationHandler(
-        entry_points=[CommandHandler("addpost", addpost_start)],
-        states={
-            WAITING_FOR_MEDIA: [MessageHandler(filters.VIDEO | filters.Document.ALL, addpost_media)],
-            WAITING_FOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, addpost_name)]
-        },
-        fallbacks=[]
-    )
-    app_.add_handler(addpost_conv)
+    application.add_handler(CallbackQueryHandler(callback_handler, pattern="^(about|help|close)$"))
+    application.add_handler(CallbackQueryHandler(animelist_callback, pattern=r"^animelist_\d+$"))
+    application.add_handler(CallbackQueryHandler(viewpost_callback, pattern=r"^viewpost_\d+$"))
 
-    print("\u2705 Bot running with polling...")
-    app_.run_polling()
+    application.add_handler(MessageHandler(filters.COMMAND, unknown))
+
+    print("Bot started!")
+    await application.run_polling()
 
 if __name__ == "__main__":
-    run_bot()
+    import asyncio
+    asyncio.run(main())
