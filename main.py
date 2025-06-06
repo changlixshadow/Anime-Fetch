@@ -9,7 +9,7 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes
 )
 
-API_TOKEN = "YOUR_BOT_TOKEN_HERE"
+API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
