@@ -1,6 +1,3 @@
-# ✅ Full working bot with flexible buttons and full features
-# Hostable on Render using run_polling()
-
 import os
 import json
 from flask import Flask
@@ -13,8 +10,8 @@ from telegram.ext import (
 )
 from telegram.constants import ParseMode
 
-API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"  # Replace this
-ADMIN_IDS = [5759232282]  # Replace with real Telegram IDs
+API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"  # Replace with your bot token
+ADMIN_IDS = [5759232282]  # Replace with admin Telegram IDs
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 
@@ -49,9 +46,10 @@ def start_buttons():
         [InlineKeyboardButton("❌ Close", callback_data="close")]
     ])
 
-def back_button():
+def back_help_buttons():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back", callback_data="back")]
+        [InlineKeyboardButton("🔙 Back", callback_data="back"),
+         InlineKeyboardButton("⚙️ Help", callback_data="help")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,7 +74,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>Backup:</b> @YourBackupChannel\n"
             "<b>NSFW:</b> @YourEcchiChannel\n"
         )
-        await query.message.edit_media(InputMediaPhoto(ABOUT_IMAGE, caption=caption, parse_mode='HTML'), reply_markup=back_button())
+        await query.message.edit_media(InputMediaPhoto(ABOUT_IMAGE, caption=caption, parse_mode='HTML'),
+                                       reply_markup=back_help_buttons())
     elif query.data == "help":
         caption = (
             "<b>⚙ Help Guide</b>\n\n"
@@ -87,7 +86,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "✅ /addpost - Save post with buttons\n"
             "✅ /viewrequests - See user requests\n"
         )
-        await query.message.edit_media(InputMediaPhoto(HELP_IMAGE, caption=caption, parse_mode='HTML'), reply_markup=back_button())
+        await query.message.edit_media(InputMediaPhoto(HELP_IMAGE, caption=caption, parse_mode='HTML'),
+                                       reply_markup=back_help_buttons())
     elif query.data == "back":
         await query.message.edit_media(InputMediaPhoto(START_IMAGE, caption=
             "✨ <b>Welcome to Anime Garden!</b> ✨\n\nDiscover & Request your favorite Anime.\n\n<b>Channel:</b> @YourMainChannel\n<b>Backup:</b> @YourBackupChannel",
@@ -105,7 +105,10 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Unknown command. Use /help")
 
 async def delete_unwanted(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.delete()
+    try:
+        await update.message.delete()
+    except:
+        pass
 
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
@@ -115,14 +118,18 @@ async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     media_type = 'photo' if update.message.photo else 'video'
     file_id = update.message.photo[-1].file_id if media_type == 'photo' else update.message.video.file_id
     caption = update.message.caption or ""
-    buttons = update.message.reply_markup.inline_keyboard if update.message.reply_markup else []
+    markup = update.message.reply_markup
+    button_data = []
+    if markup:
+        for row in markup.inline_keyboard:
+            button_data.append([{"text": btn.text, "url": btn.url} for btn in row])
     post_id = str(len(load_json(POSTS_FILE)) + 1)
     post_data = load_json(POSTS_FILE)
     post_data[post_id] = {
         "media_type": media_type,
         "file_id": file_id,
         "caption": caption,
-        "buttons": [[btn.text for btn in row] for row in buttons]
+        "buttons": button_data
     }
     save_json(POSTS_FILE, post_data)
     await update.message.reply_text("✅ Post saved!")
@@ -133,7 +140,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for post in posts.values():
         if query in post["caption"].lower():
             markup = InlineKeyboardMarkup(
-                [[InlineKeyboardButton(text, url="https://t.me/") for text in row] for row in post.get("buttons", [])]
+                [[InlineKeyboardButton(btn["text"], url=btn["url"]) for btn in row] for row in post.get("buttons", [])]
             )
             if post["media_type"] == "photo":
                 await update.message.reply_photo(post["file_id"], caption=post["caption"], reply_markup=markup)
@@ -168,19 +175,19 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keys = list(posts.keys())
     total_pages = (len(keys) + per_page - 1) // per_page
     start, end = (page - 1) * per_page, page * per_page
-    media = [f"{i+1}. {posts[k]['caption'][:30]}..." for i, k in enumerate(keys[start:end])]
+    media = [f"{i + 1}. {posts[k]['caption'][:30]}..." for i, k in enumerate(keys[start:end])]
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"page:{page-1}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"page:{page - 1}"))
     if page < total_pages:
-        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"page:{page+1}"))
+        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"page:{page + 1}"))
     markup = InlineKeyboardMarkup([nav_buttons]) if nav_buttons else None
     await update.message.reply_text("\n".join(media), reply_markup=markup)
 
 async def page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    page = int(query.data.split(":"[1]))
+    page = int(query.data.split(":")[1])
     context.args = [str(page)]
     update.message = query.message
     await animelist(update, context)
@@ -200,7 +207,7 @@ def run():
     app_.add_handler(CallbackQueryHandler(page_callback, pattern=r"^page:"))
     app_.add_handler(MessageHandler(filters.COMMAND, unknown))
     app_.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, delete_unwanted))
-    print("Bot is running🚀...")
+    print("Bot running...")
     app_.run_polling()
 
 if __name__ == '__main__':
