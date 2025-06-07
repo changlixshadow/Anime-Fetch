@@ -25,12 +25,12 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZ
 ADMIN_IDS = [int(admin_id) for admin_id in os.environ.get("ADMIN_IDS", "5759232282").split(',') if admin_id]
 # Your admin group chat ID where requests will be forwarded
 ADMIN_GROUP_ID = int(os.environ.get("ADMIN_GROUP_ID", "-1002328544177"))
-# Your channel link (REMINDER: Please replace this with your actual channel link!)
+# Your channel link (IMPORTANT: Replace this with your actual channel link!)
 CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/your_anime_channel_link")
 # Your about image URL
 ABOUT_IMAGE_URL = os.environ.get("ABOUT_IMAGE_URL", "https://telegra.ph/file/9d18345731db88fff4f8c-d2b3920631195c5747.jpg")
 # Your start image URL
-START_IMAGE_URL = os.environ.get("START_IMAGE_URL", "https://telegra.ph/file/050a20dace942a60220c0-6afbc023e43fad29c7.jpg")
+START_IMAGE_URL = os.environ.get("START_IMAGE_URL", "https://telegra.ph/file/050a20dace942a60220c0-6afbc0220c0-6afbc023e43fad29c7.jpg")
 # Your help image URL
 HELP_IMAGE_URL = os.environ.get("HELP_IMAGE_URL", "https://telegra.ph/file/e6ec31fc792d072da2b7e-54e7c7d4c5651823b3.jpg")
 
@@ -203,7 +203,7 @@ async def receive_post_name(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text(
             f"✅ Post name '{post_name}' saved. \n"
             "🖼️ Now, please send the media (photo/video) with its caption you want to post. "
-            "Note: Telegram's API does not allow bots to extract inline buttons from forwarded messages. "
+            "**Note:** Telegram's API does not allow bots to extract inline buttons from forwarded messages. "
             "You will need to manually add buttons in the next step."
         )
     else:
@@ -248,7 +248,7 @@ async def handle_post_media(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "🔗 Media and caption saved. \n"
             "Now, please send the text and URL for each button. You have two options:\n"
             "1. `Button Text | Button URL` (e.g., `Main Channel | https://t.me/your_channel`)\n"
-            "2. Just paste a URL (e.g., `https://example.com/download`). The button text will be 'Download Now'.\n"
+            "2. Just paste a URL (e.g., `https://example.com/download`). The button text will automatically be 'Download Now'.\n"
             "Use a new line for each button. Type `DONE` when finished.\n"
             "If there are no buttons, just type `DONE`."
         )
