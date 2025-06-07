@@ -1,37 +1,40 @@
 import os
 import json
-import asyncio
 from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, ConversationHandler, filters
 )
+import asyncio
 
-# --- Config ---
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"https://anime-fetch-j2ro.onrender.com{WEBHOOK_PATH}"
+
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
+ITEMS_PER_PAGE = 5
 
-# --- Flask App ---
 app = Flask(__name__)
+
+# Build application object
+application = Application.builder().token(API_TOKEN).build()
 
 @app.route("/")
 def home():
     return "✅ Bot is alive with webhook!"
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
-def webhook():
+async def webhook():
     if request.method == "POST":
         update = Update.de_json(request.get_json(force=True), application.bot)
-        asyncio.run(application.process_update(update))
+        await application.process_update(update)
     return "ok"
 
-# --- Helpers ---
+# Utility functions
 def ensure_file(file):
     if not os.path.exists(file):
         with open(file, "w") as f:
@@ -46,15 +49,15 @@ def load_json(file):
     with open(file, "r") as f:
         return json.load(f)
 
-# --- Handlers ---
+# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the Anime Bot! 🚀\nUse /addpost, /search, /animelist etc.")
+    await update.message.reply_text("👋 Welcome to the Anime Bot!\nUse /addpost, /search, /animelist, etc.")
 
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("You are not authorized to use this command.")
+        await update.message.reply_text("🚫 You are not authorized.")
         return ConversationHandler.END
-    await update.message.reply_text("Send the photo or video with optional caption and buttons.")
+    await update.message.reply_text("📤 Send the photo or video with a caption and buttons (optional).")
     return WAITING_FOR_MEDIA
 
 async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -66,7 +69,7 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media = update.message.video.file_id
         media_type = "video"
     else:
-        await update.message.reply_text("Please send a photo or video.")
+        await update.message.reply_text("❌ Please send a photo or video.")
         return WAITING_FOR_MEDIA
 
     caption = update.message.caption or ""
@@ -82,7 +85,7 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "buttons": buttons,
     })
 
-    await update.message.reply_text("Enter a name to save this post:")
+    await update.message.reply_text("💾 Enter a name to save this post as:")
     return WAITING_FOR_NAME
 
 async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,7 +93,7 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
     posts[name] = context.user_data.copy()
     save_json(POSTS_FILE, posts)
-    await update.message.reply_text(f"✅ Post saved as '{name}'!")
+    await update.message.reply_text(f"✅ Post saved as: {name}")
     return ConversationHandler.END
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -100,7 +103,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = " ".join(context.args)
     posts = load_json(POSTS_FILE)
     if name not in posts:
-        await update.message.reply_text("No post found with that name.")
+        await update.message.reply_text("❌ No post found.")
         return
 
     post = posts[name]
@@ -119,8 +122,8 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No anime saved yet.")
         return
     names = sorted(posts.keys())
-    message = "\n".join(f"- {name}" for name in names)
-    await update.message.reply_text(f"📺 Saved Anime List:\n{message}")
+    message = "\n".join(f"• {name}" for name in names)
+    await update.message.reply_text(f"📚 Saved Anime List:\n{message}")
 
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -131,30 +134,27 @@ async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     requests.setdefault(user_id, []).append(name)
     save_json(REQUESTS_FILE, requests)
-    await update.message.reply_text(f"✅ Your request for '{name}' has been saved!")
+    await update.message.reply_text(f"📩 Request saved for: {name}")
 
 async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("You are not authorized.")
+        await update.message.reply_text("🚫 Not authorized.")
         return
     requests = load_json(REQUESTS_FILE)
     if not requests:
         await update.message.reply_text("No requests found.")
         return
     msg = "\n".join(f"User {uid}: {', '.join(animes)}" for uid, animes in requests.items())
-    await update.message.reply_text(f"📥 Requests:\n{msg}")
+    await update.message.reply_text(f"📋 Requests:\n{msg}")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Action cancelled.")
+    await update.message.reply_text("❌ Cancelled.")
     return ConversationHandler.END
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Unknown command. Try /search or /animelist")
+    await update.message.reply_text("❓ Unknown command. Try /search or /animelist.")
 
-# --- Build Application (must be declared before webhook) ---
-application = Application.builder().token(API_TOKEN).build()
-
-# --- Handlers ---
+# Register Handlers
 conv_handler = ConversationHandler(
     entry_points=[CommandHandler("addpost", addpost)],
     states={
@@ -172,18 +172,13 @@ application.add_handler(CommandHandler("viewrequests", viewrequests))
 application.add_handler(conv_handler)
 application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
-# --- Webhook Setup + Start Flask ---
+# Webhook setup
 async def set_webhook():
     await application.bot.set_webhook(WEBHOOK_URL)
     print(f"✅ Webhook set to {WEBHOOK_URL}")
 
-async def run():
+if __name__ == '__main__':
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
-    await set_webhook()
-    await application.initialize()
-    await application.start()
+    asyncio.run(set_webhook())
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-if __name__ == '__main__':
-    asyncio.run(run())
