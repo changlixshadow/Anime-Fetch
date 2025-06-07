@@ -1,26 +1,23 @@
-# ✅ Fully Working Code for Render Web Service (Webhook)
-# Includes Flask + Webhook setup with your API token and admin ID
-
 import os
 import json
+import asyncio
 from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, ConversationHandler, filters
 )
-import asyncio
 
+# --- Config ---
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_IDS = [5759232282]
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"https://anime-fetch-j2ro.onrender.com{WEBHOOK_PATH}"
-
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
 WAITING_FOR_MEDIA, WAITING_FOR_NAME = range(2)
-ITEMS_PER_PAGE = 5
 
+# --- Flask App ---
 app = Flask(__name__)
 
 @app.route("/")
@@ -34,6 +31,7 @@ def webhook():
         asyncio.run(application.process_update(update))
     return "ok"
 
+# --- Helpers ---
 def ensure_file(file):
     if not os.path.exists(file):
         with open(file, "w") as f:
@@ -48,7 +46,7 @@ def load_json(file):
     with open(file, "r") as f:
         return json.load(f)
 
-# Handlers
+# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Welcome to the Anime Bot! 🚀\nUse /addpost, /search, /animelist etc.")
 
@@ -92,7 +90,7 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = load_json(POSTS_FILE)
     posts[name] = context.user_data.copy()
     save_json(POSTS_FILE, posts)
-    await update.message.reply_text(f"Post saved as '{name}'!")
+    await update.message.reply_text(f"✅ Post saved as '{name}'!")
     return ConversationHandler.END
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -122,7 +120,7 @@ async def animelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     names = sorted(posts.keys())
     message = "\n".join(f"- {name}" for name in names)
-    await update.message.reply_text(f"Saved Anime List:\n{message}")
+    await update.message.reply_text(f"📺 Saved Anime List:\n{message}")
 
 async def requestanime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -144,7 +142,7 @@ async def viewrequests(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No requests found.")
         return
     msg = "\n".join(f"User {uid}: {', '.join(animes)}" for uid, animes in requests.items())
-    await update.message.reply_text(f"Requests:\n{msg}")
+    await update.message.reply_text(f"📥 Requests:\n{msg}")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Action cancelled.")
@@ -153,9 +151,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Unknown command. Try /search or /animelist")
 
-# Build app
+# --- Build Application (must be declared before webhook) ---
 application = Application.builder().token(API_TOKEN).build()
 
+# --- Handlers ---
 conv_handler = ConversationHandler(
     entry_points=[CommandHandler("addpost", addpost)],
     states={
@@ -173,13 +172,18 @@ application.add_handler(CommandHandler("viewrequests", viewrequests))
 application.add_handler(conv_handler)
 application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
-# Set webhook on startup
+# --- Webhook Setup + Start Flask ---
 async def set_webhook():
     await application.bot.set_webhook(WEBHOOK_URL)
     print(f"✅ Webhook set to {WEBHOOK_URL}")
 
-if __name__ == '__main__':
+async def run():
     ensure_file(POSTS_FILE)
     ensure_file(REQUESTS_FILE)
-    asyncio.run(set_webhook())
+    await set_webhook()
+    await application.initialize()
+    await application.start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+if __name__ == '__main__':
+    asyncio.run(run())
