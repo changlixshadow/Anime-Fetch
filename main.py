@@ -14,7 +14,7 @@ import asyncio
 
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
 ADMIN_ID = 5759232282
-BOT_USERNAME = "YourBotUsername"  # Optional: Set if you use inline mention
+BOT_USERNAME = "@Anime_fetch_robot"  # Optional: Set if you use inline mention
 
 POSTS_FILE = "posts.json"
 REQUESTS_FILE = "requests.json"
