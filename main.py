@@ -1,21 +1,17 @@
 import os
 import json
-from flask import Flask, request
+from flask import Flask
 from telegram import (
-    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto,
-    InputFile
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters
 )
-from telegram.ext import Defaults
 from telegram.constants import ParseMode
 import asyncio
 
-# --- Config ---
 API_TOKEN = "8006836827:AAERFD1tDpBDJhvKm_AHy20uSAzZdoRwbZc"
-WEBHOOK_URL = "https://anime-fetch-j2ro.onrender.com/webhook"  # Update with your Render URL
 PORT = int(os.environ.get("PORT", 8080))
 ADMIN_IDS = [5759232282]
 
@@ -39,13 +35,11 @@ HELP_CAPTION = "⚙️ Help\n\nUse the commands to navigate and request or post 
 
 WAITING_FOR_NAME, WAITING_FOR_BROADCAST = range(2)
 
-# --- Initialize files if not exist ---
 for f in [POSTS_FILE, REQUESTS_FILE, USERS_FILE]:
-    with open(f, "w") if not os.path.exists(f) else open(f, "r") as fp:
-        if not os.path.exists(f):
+    if not os.path.exists(f):
+        with open(f, "w") as fp:
             json.dump([] if f == REQUESTS_FILE else {}, fp)
 
-# --- Utility ---
 def load_data(path):
     with open(path, "r") as f:
         return json.load(f)
@@ -78,7 +72,6 @@ def build_keyboard(buttons):
          for b in row] for row in buttons
     ])
 
-# --- Handlers ---
 async def save_user(update: Update):
     users = load_data(USERS_FILE)
     u = update.effective_user
@@ -222,20 +215,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Canceled.")
     return ConversationHandler.END
 
-# --- Flask App ---
-app = Flask(__name__)
-bot_app = Application.builder().token(API_TOKEN).build()
+# --- Run bot with polling ---
+if __name__ == "__main__":
+    app = Application.builder().token(API_TOKEN).build()
 
-@app.route("/")
-def home():
-    return "Bot is alive"
-
-@app.route("/webhook", methods=["POST"])
-async def webhook():
-    await bot_app.update_queue.put(Update.de_json(request.json, bot_app.bot))
-    return "ok"
-
-def setup_handlers():
     post_conv = ConversationHandler(
         entry_points=[CommandHandler("addpost", addpost)],
         states={WAITING_FOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_post)]},
@@ -246,20 +229,15 @@ def setup_handlers():
         states={WAITING_FOR_BROADCAST: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)]},
         fallbacks=[CommandHandler("cancel", cancel)]
     )
-    bot_app.add_handler(post_conv)
-    bot_app.add_handler(broadcast_conv)
-    bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CommandHandler("animelist", animelist))
-    bot_app.add_handler(CommandHandler("search", search))
-    bot_app.add_handler(CommandHandler("requestanime", requestanime))
-    bot_app.add_handler(CommandHandler("viewrequests", viewrequests))
-    bot_app.add_handler(CommandHandler("users", users))
-    bot_app.add_handler(CallbackQueryHandler(button_handler))
 
-# --- Run app ---
-if __name__ == "__main__":
-    setup_handlers()
-    loop = asyncio.get_event_loop()
-    loop.create_task(bot_app.initialize())
-    loop.create_task(bot_app.bot.set_webhook(url=WEBHOOK_URL))
-    app.run(host="0.0.0.0", port=PORT)
+    app.add_handler(post_conv)
+    app.add_handler(broadcast_conv)
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("animelist", animelist))
+    app.add_handler(CommandHandler("search", search))
+    app.add_handler(CommandHandler("requestanime", requestanime))
+    app.add_handler(CommandHandler("viewrequests", viewrequests))
+    app.add_handler(CommandHandler("users", users))
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    app.run_polling()
